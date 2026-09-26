@@ -134,10 +134,11 @@ def run_pipeline(split: str = "test", top_k: int = BLOCKING_TOP_K, threshold_ove
             X = chunk_feat_df[FEATURE_COLUMNS]
             probs = model.predict_proba(X)[:, 1]
             valid_mask = (
-                (chunk_feat_df["prob"] >= threshold)
-                & (chunk_feat_df["num_conflict"] == 0.0)
-                & (chunk_feat_df["pin_conflict"] == 0.0)
+                (probs >= threshold)
+                & (chunk_feat_df["num_conflict"].values == 0.0)
+                & (chunk_feat_df["pin_conflict"].values == 0.0)
             )
+            selected = chunk_feat_df[valid_mask]
         else:
             confidence_mask = (
                 (chunk_feat_df["name_token_set"] >= 0.85)
