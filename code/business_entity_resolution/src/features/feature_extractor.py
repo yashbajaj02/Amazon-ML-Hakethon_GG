@@ -5,6 +5,11 @@ import pandas as pd
 from rapidfuzz import fuzz
 
 NUM_REGEX = re.compile(r"\b\d+\b")
+POSTAL_REGEX = re.compile(r"\b[1-9]\d{4,5}\b")  # 5-digit US/France or 6-digit India postal codes
+LEGAL_STRIP = re.compile(
+    r"\b(corporation|incorporated|limited|private|llc|llp|company|sarl|sas|sasu|eurl|sci|sa|corp|inc|ltd|pvt|co)\b",
+    flags=re.IGNORECASE,
+)
 BRANCH_KEYWORDS = {
     "central", "west", "east", "north", "south", "branch",
     "services", "capital", "holdings", "group", "international", "global"
@@ -20,13 +25,25 @@ def compute_pair_features(
     country2: str,
 ) -> Dict[str, float]:
     """
-    Computes a vector of similarity metrics between two business records.
+    Computes a comprehensive vector of similarity and discriminatory metrics
+    between two business records across US, India, and France.
     """
     # Name features
     name_ratio = fuzz.ratio(name1, name2) / 100.0
     name_partial = fuzz.partial_ratio(name1, name2) / 100.0
     name_token_sort = fuzz.token_sort_ratio(name1, name2) / 100.0
     name_token_set = fuzz.token_set_ratio(name1, name2) / 100.0
+
+    # Core brand name without legal suffixes
+    core1 = LEGAL_STRIP.sub(" ", name1).strip()
+    core2 = LEGAL_STRIP.sub(" ", name2).strip()
+    core_name_ratio = fuzz.ratio(core1, core2) / 100.0 if (core1 or core2) else 0.0
+    core_exact = 1.0 if (core1 and core1 == core2) else 0.0
+
+    # First word match (primary brand anchor)
+    toks1 = name1.split()
+    toks2 = name2.split()
+    first_word_match = 1.0 if (toks1 and toks2 and toks1[0] == toks2[0]) else 0.0
 
     # Address features
     addr_ratio = fuzz.ratio(addr1, addr2) / 100.0
@@ -35,8 +52,8 @@ def compute_pair_features(
     addr_token_set = fuzz.token_set_ratio(addr1, addr2) / 100.0
 
     # Token overlap (Jaccard)
-    tokens1 = set(name1.split())
-    tokens2 = set(name2.split())
+    tokens1 = set(toks1)
+    tokens2 = set(toks2)
     name_jaccard = (
         len(tokens1 & tokens2) / len(tokens1 | tokens2)
         if (tokens1 or tokens2)
@@ -67,6 +84,12 @@ def compute_pair_features(
     num_exact = 1.0 if (nums1 and nums2 and nums1 == nums2) else 0.0
     num_overlap = 1.0 if (nums1 and nums2 and (nums1 & nums2)) else 0.0
 
+    # Postal / PIN codes (India 6-digit PIN, US/France 5-digit ZIP)
+    pins1 = set(POSTAL_REGEX.findall(addr1))
+    pins2 = set(POSTAL_REGEX.findall(addr2))
+    pin_conflict = 1.0 if (pins1 and pins2 and not (pins1 & pins2)) else 0.0
+    pin_match = 1.0 if (pins1 and pins2 and (pins1 & pins2)) else 0.0
+
     # Branch / corporate division mismatch
     b1 = tokens1 & BRANCH_KEYWORDS
     b2 = tokens2 & BRANCH_KEYWORDS
@@ -77,6 +100,9 @@ def compute_pair_features(
         "name_partial": name_partial,
         "name_token_sort": name_token_sort,
         "name_token_set": name_token_set,
+        "core_name_ratio": core_name_ratio,
+        "core_exact": core_exact,
+        "first_word_match": first_word_match,
         "name_jaccard": name_jaccard,
         "addr_ratio": addr_ratio,
         "addr_partial": addr_partial,
@@ -91,6 +117,8 @@ def compute_pair_features(
         "num_conflict": num_conflict,
         "num_exact": num_exact,
         "num_overlap": num_overlap,
+        "pin_conflict": pin_conflict,
+        "pin_match": pin_match,
         "branch_mismatch": branch_mismatch,
     }
 

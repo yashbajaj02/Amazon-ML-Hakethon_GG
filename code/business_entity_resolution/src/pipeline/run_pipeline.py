@@ -133,9 +133,11 @@ def run_pipeline(split: str = "test", top_k: int = BLOCKING_TOP_K, threshold_ove
         if model is not None:
             X = chunk_feat_df[FEATURE_COLUMNS]
             probs = model.predict_proba(X)[:, 1]
-            chunk_feat_df["prob"] = probs
-            valid_mask = chunk_feat_df["prob"] >= threshold
-            selected = chunk_feat_df[valid_mask]
+            valid_mask = (
+                (chunk_feat_df["prob"] >= threshold)
+                & (chunk_feat_df["num_conflict"] == 0.0)
+                & (chunk_feat_df["pin_conflict"] == 0.0)
+            )
         else:
             confidence_mask = (
                 (chunk_feat_df["name_token_set"] >= 0.85)
@@ -160,7 +162,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Run Entity Resolution Pipeline")
     parser.add_argument("--split", choices=["train", "test"], default="test")
     parser.add_argument("--top_k", type=int, default=BLOCKING_TOP_K)
-    parser.add_argument("--threshold", type=float, default=0.60, help="Probability threshold for matching")
+    parser.add_argument("--threshold", type=float, default=0.70, help="Probability threshold for matching")
     args = parser.parse_args()
 
     run_pipeline(split=args.split, top_k=args.top_k, threshold_override=args.threshold)

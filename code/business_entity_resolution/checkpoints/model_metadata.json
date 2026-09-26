@@ -1,12 +1,15 @@
 {
   "model_type": "LightGBM",
-  "optimal_threshold": 0.60,
-  "validation_macro_f05": 0.97742,
+  "optimal_threshold": 0.75,
+  "validation_macro_f05": 0.9313850621160947,
   "feature_columns": [
     "name_ratio",
     "name_partial",
     "name_token_sort",
     "name_token_set",
+    "core_name_ratio",
+    "core_exact",
+    "first_word_match",
     "name_jaccard",
     "addr_ratio",
     "addr_partial",
@@ -21,6 +24,8 @@
     "num_conflict",
     "num_exact",
     "num_overlap",
+    "pin_conflict",
+    "pin_match",
     "branch_mismatch"
   ]
 }

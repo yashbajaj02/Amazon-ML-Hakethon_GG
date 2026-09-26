@@ -11,6 +11,9 @@ FEATURE_COLUMNS = [
     "name_partial",
     "name_token_sort",
     "name_token_set",
+    "core_name_ratio",
+    "core_exact",
+    "first_word_match",
     "name_jaccard",
     "addr_ratio",
     "addr_partial",
@@ -25,69 +28,69 @@ FEATURE_COLUMNS = [
     "num_conflict",
     "num_exact",
     "num_overlap",
+    "pin_conflict",
+    "pin_match",
     "branch_mismatch",
 ]
 
 
 class EntityMatcher:
-    def __init__(self, threshold: float = 0.65):
+    def __init__(self, threshold: float = 0.70):
         self.threshold = threshold
         self.model = lgb.LGBMClassifier(
-            n_estimators=300,
-            learning_rate=0.05,
-            num_leaves=31,
-            max_depth=6,
-            subsample=0.8,
-            colsample_bytree=0.8,
+            n_estimators=600,
+            learning_rate=0.04,
+            num_leaves=63,
+            max_depth=8,
+            subsample=0.85,
+            colsample_bytree=0.85,
+            min_child_samples=25,
             random_state=42,
             n_jobs=-1,
         )
 
     def fit(self, X: pd.DataFrame, y: np.ndarray):
-        """Train LightGBM binary classifier on pairwise features."""
+        """Train high-capacity LightGBM binary classifier on pairwise features."""
         features = X[FEATURE_COLUMNS]
         self.model.fit(features, y)
 
     def predict_proba(self, X: pd.DataFrame) -> np.ndarray:
-        """Returns positive class match probability."""
+        """Predicts positive class matching probability."""
         features = X[FEATURE_COLUMNS]
         return self.model.predict_proba(features)[:, 1]
 
     def optimize_threshold(
         self,
-        val_df: pd.DataFrame,
-        val_probs: np.ndarray,
+        X_val: pd.DataFrame,
+        probs: np.ndarray,
         ground_truth: Dict[str, List[str]],
-        thresholds: Optional[List[float]] = None,
+        thresholds: List[float] = [0.55, 0.60, 0.65, 0.70, 0.72, 0.75, 0.78, 0.80, 0.82, 0.85],
     ) -> float:
         """
-        Finds the probability threshold that maximizes Macro F_0.5 score on validation data.
+        Grid searches optimal probability decision threshold directly targeting Macro F0.5.
         """
-        if thresholds is None:
-            thresholds = [0.4, 0.5, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8, 0.85]
-
-        best_score = -1.0
+        best_f05 = -1.0
         best_thresh = self.threshold
 
-        val_df = val_df.copy()
-        val_df["prob"] = val_probs
+        s1_entities = list(ground_truth.keys())
+        X_eval = X_val.copy()
+        X_eval["prob"] = probs
 
         for thresh in thresholds:
-            matched = val_df[val_df["prob"] >= thresh]
-            preds: Dict[str, List[str]] = {s1: [] for s1 in ground_truth}
-            for _, row in matched.iterrows():
-                s1_id = row["source1_entity_id"]
-                cand_id = row["candidate_entity_id"]
-                if s1_id in preds:
-                    preds[s1_id].append(cand_id)
+            matched_pairs = X_eval[X_eval["prob"] >= thresh]
+            preds = {s1_id: [] for s1_id in s1_entities}
+            for _, row in matched_pairs.iterrows():
+                preds[row["source1_entity_id"]].append(row["candidate_entity_id"])
 
-            # Ensure uniqueness
-            for s1 in preds:
-                preds[s1] = list(dict.fromkeys(preds[s1]))
+            for s1_id in preds:
+                preds[s1_id] = list(dict.fromkeys(preds[s1_id]))
 
-            score = compute_macro_f05(preds, ground_truth)
-            if score > best_score:
-                best_score = score
+            f05 = compute_macro_f05(preds, ground_truth)
+            empty_count = sum(1 for v in preds.values() if len(v) == 0)
+            print(f"  [Threshold Search] Thresh={thresh:.2f} -> Macro F0.5={f05:.4f} (Singletons: {empty_count:,}/{len(s1_entities):,})")
+
+            if f05 > best_f05:
+                best_f05 = f05
                 best_thresh = thresh
 
         self.threshold = best_thresh

@@ -113,13 +113,13 @@ def train_model_on_hard_negatives(sample_s1_size: int = 20000):
     thresholds = [0.5, 0.6, 0.65, 0.7, 0.75, 0.8, 0.82, 0.85, 0.88, 0.90]
     best_thresh = matcher.optimize_threshold(X_val, val_probs, val_gt, thresholds=thresholds)
 
-    # Evaluate validation Macro F0.5 with guardrails
+    # Evaluate validation Macro F0.5 with high-precision guardrails
     val_df_eval = X_val.copy()
     val_df_eval["prob"] = val_probs
     valid_mask = (
         (val_df_eval["prob"] >= best_thresh)
         & (val_df_eval["num_conflict"] == 0.0)
-        & (val_df_eval["branch_mismatch"] == 0.0)
+        & (val_df_eval["pin_conflict"] == 0.0)
     )
     matched = val_df_eval[valid_mask]
 
@@ -130,9 +130,11 @@ def train_model_on_hard_negatives(sample_s1_size: int = 20000):
         preds[s1] = list(dict.fromkeys(preds[s1]))
 
     val_f05 = compute_macro_f05(preds, val_gt)
+    empty_singletons = sum(1 for v in preds.values() if len(v) == 0)
     print(f"\n============================================================")
     print(f"Optimal Threshold:            {best_thresh:.2f}")
     print(f"Validation Macro F_0.5 Score: {val_f05:.4f}")
+    print(f"Validation Singletons:        {empty_singletons:,} / {len(val_ids):,} ({empty_singletons/len(val_ids)*100:.2f}%)")
     print(f"============================================================")
 
     # 9. Save Checkpoint
@@ -156,4 +158,4 @@ def train_model_on_hard_negatives(sample_s1_size: int = 20000):
 
 
 if __name__ == "__main__":
-    train_model_on_hard_negatives(sample_s1_size=25000)
+    train_model_on_hard_negatives(sample_s1_size=40000)
