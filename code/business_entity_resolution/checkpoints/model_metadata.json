@@ -1,0 +1,26 @@
+{
+  "model_type": "LightGBM",
+  "optimal_threshold": 0.65,
+  "validation_macro_f05": 0.9096099411654281,
+  "feature_columns": [
+    "name_ratio",
+    "name_partial",
+    "name_token_sort",
+    "name_token_set",
+    "name_jaccard",
+    "addr_ratio",
+    "addr_partial",
+    "addr_token_sort",
+    "addr_token_set",
+    "addr_jaccard",
+    "len_diff_name",
+    "len_diff_addr",
+    "exact_name",
+    "exact_addr",
+    "same_country",
+    "num_conflict",
+    "num_exact",
+    "num_overlap",
+    "branch_mismatch"
+  ]
+}
