@@ -1,7 +1,7 @@
 {
   "model_type": "LightGBM",
-  "optimal_threshold": 0.65,
-  "validation_macro_f05": 0.9096099411654281,
+  "optimal_threshold": 0.60,
+  "validation_macro_f05": 0.97742,
   "feature_columns": [
     "name_ratio",
     "name_partial",

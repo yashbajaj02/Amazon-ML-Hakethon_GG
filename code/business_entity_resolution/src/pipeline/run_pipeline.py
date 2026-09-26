@@ -49,7 +49,7 @@ def save_matches_tsv(matches_dict: dict, out_path: Path):
         f.write("\n".join(rows) + "\n")
 
 
-def run_pipeline(split: str = "test", top_k: int = BLOCKING_TOP_K):
+def run_pipeline(split: str = "test", top_k: int = BLOCKING_TOP_K, threshold_override: float = None):
     data_dir = TEST_DIR if split == "test" else TRAIN_DIR
     print(f"Loading {split} data from {data_dir}...")
     s1_df, s2_df, s3_df = load_dataset_split(data_dir, split_prefix=split)
@@ -99,11 +99,11 @@ def run_pipeline(split: str = "test", top_k: int = BLOCKING_TOP_K):
         model = joblib.load(model_path)
         with open(meta_path, "r", encoding="utf-8") as f:
             metadata = json.load(f)
-        threshold = metadata.get("optimal_threshold", MODEL_THRESHOLD)
+        threshold = threshold_override if threshold_override is not None else metadata.get("optimal_threshold", 0.60)
         print(f"Applying calibrated F_0.5 decision threshold: {threshold:.2f}")
     else:
         model = None
-        threshold = MODEL_THRESHOLD
+        threshold = threshold_override if threshold_override is not None else MODEL_THRESHOLD
         print("Warning: No model checkpoint found, using rule-based thresholding.")
 
     # Score candidate pairs in stream chunks to keep memory usage bounded (< 2 GB)
@@ -134,11 +134,7 @@ def run_pipeline(split: str = "test", top_k: int = BLOCKING_TOP_K):
             X = chunk_feat_df[FEATURE_COLUMNS]
             probs = model.predict_proba(X)[:, 1]
             chunk_feat_df["prob"] = probs
-            valid_mask = (
-                (chunk_feat_df["prob"] >= threshold)
-                & (chunk_feat_df["num_conflict"] == 0.0)
-                & (chunk_feat_df["branch_mismatch"] == 0.0)
-            )
+            valid_mask = chunk_feat_df["prob"] >= threshold
             selected = chunk_feat_df[valid_mask]
         else:
             confidence_mask = (
@@ -164,6 +160,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Run Entity Resolution Pipeline")
     parser.add_argument("--split", choices=["train", "test"], default="test")
     parser.add_argument("--top_k", type=int, default=BLOCKING_TOP_K)
+    parser.add_argument("--threshold", type=float, default=0.60, help="Probability threshold for matching")
     args = parser.parse_args()
 
-    run_pipeline(split=args.split, top_k=args.top_k)
+    run_pipeline(split=args.split, top_k=args.top_k, threshold_override=args.threshold)
