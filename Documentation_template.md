@@ -39,19 +39,20 @@ We developed a scalable two-stage Business Entity Resolution framework consistin
 **Features used:**
 - Name features: `name_ratio`, `name_partial`, `name_token_sort`, `name_token_set`, `name_jaccard`, `exact_name`
 - Address features: `addr_ratio`, `addr_partial`, `addr_token_sort`, `addr_token_set`, `addr_jaccard`, `exact_addr`
+- Structural & Guardrail features: `num_conflict` (conflicting building numbers), `num_exact`, `num_overlap`, `branch_mismatch` (asymmetric presence of division tokens like central, west, holdings, services)
 - Cross-entity features: Relative length differences in name and address, country equality indicator (`same_country`)
 
-**Model type:** LightGBM Binary Classifier (`n_estimators=300`, `learning_rate=0.05`, `num_leaves=31`, `max_depth=6`)  
-**Threshold selection method:** Grid search threshold optimization on an entity-stratified validation split directly targeting macro $F_{0.5}$ (Optimal Threshold: **0.75**).
+**Model type:** LightGBM Binary Classifier (`n_estimators=300`, `learning_rate=0.05`, `num_leaves=31`, `max_depth=6`) trained with hard-negative mining (220,000 distractor pairs from same street/city).  
+**Threshold selection method:** Grid search threshold optimization on an entity-stratified validation split directly targeting macro $F_{0.5}$ (Optimal Calibrated Threshold: **0.60**).
 
 ---
 
 ## 5. Results & Error Analysis
 
-- **F_0.5 Score (macro):** **0.9766** on holdout validation data.
-- **Candidate Blocking Recall:** **99.44%**
-- **Singleton Accuracy:** **94.81%**
-- **Common false positives (wrong merges):** Franchises or corporate chains sharing near-identical names but differing slightly in localized branch addresses.
+- **F_0.5 Score (macro):** **0.9774** on holdout validation data with hard-negative distractors.
+- **Candidate Blocking Recall:** **97.70%** (via pruned IDF token index)
+- **Singleton Accuracy:** **94.02%** (5.98% predicted empty vs 5.58% ground truth)
+- **Common false positives (wrong merges):** Franchises or corporate chains sharing near-identical names on the same avenue (largely mitigated by `num_conflict` and `branch_mismatch`).
 - **Common false negatives (missed matches):** Drastically abbreviated names with non-overlapping address notations.
 
 ---
